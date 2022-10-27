@@ -1,0 +1,40 @@
+ select
+ 
+-----business information-----
+m.mid as Uniqueid
+,m.legal_name as Legal_Business_Name
+/*,me.merchant_ein 
+, mci.merchant_primary_contact_name
+, mci.merchant_primary_contact_phone
+, mci.merchant_primary_contact_email
+, mci.merchant_address
+, mci.merchant_address_2
+, mci.merchant_city
+, mci.merchant_state
+, mci.merchant_zip
+, mci.merchant_url */
+
+ 
+ 
+ 
+from merchant m
+ 
+left join relationship r on r.relationship_id = m.relationship_id
+ 
+left join status s on s.merchant_guid = m.merchant_guid
+ 
+left join merchant_contact_info mci on mci.merchant_guid = m.merchant_guid
+left join person p on m.merchant_guid=p.merchant_guid
+left join person_pii pp on p.person_id  = pp.person_id 
+left join person_pii_ssn pps  on p.person_pii_ssn_id  = pps.person_pii_ssn_id
+left join person_pii_dob ppd   on p.person_pii_dob_id   = ppd.person_pii_dob_id 
+left join merchant_ein me  on  m.merchant_ein_id =me.merchant_ein_id 
+ 
+where  
+ 
+ s.user_status = 'Open'
+ 
+ and s.approved_date >= '2022-09-09'   --- change date when needed---
+ --- Open or Closed---
+ 
+ --and r.processor_name = 'REPAY'  ---- change processor name when needed ---
