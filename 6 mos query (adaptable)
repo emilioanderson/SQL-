@@ -1,0 +1,88 @@
+---Query 1---
+-------6 mnts post mortem -----
+---CTE for Sales---
+WITH sales
+AS (
+       select
+       a.mid
+       ,transaction_date
+       ,COUNT(case when (transaction_type ='capture') then 1
+       else NULL end) as Sales_Count
+       ,COUNT(case when (transaction_type ='return') then 1
+       else NULL end) as Return_Count
+       ,SUM(case when (transaction_type ='capture') then PURCHASE_AMOUNT
+       else 0 end) as Sales_Vol
+       ,SUM(case when (transaction_type ='return') then abs(PURCHASE_AMOUNT)
+       else 0 end) as Return_Vol
+       from settlement_transaction a
+       left join merchant m on a.mid=m.mid
+       left join relationship d on m.relationship_id =d.relationship_id
+       where left(transaction_date,7)between '2022-06' and '2022-11'  ----insert dates----
+      -- and a.card_brand = 'MASTERCARD'
+       group by
+       a.mid
+       ,transaction_date
+       ),
+---CTE for Chargebacks---
+chargebacks AS(
+       select
+       a.mid
+       ,received_date
+       ,COUNT(case when first_chargeback then 1
+       else NULL end) as Chargeback_Count
+       ,sum(case when first_chargeback then chargeback_amount
+       else NULL end) as Chargeback_Vol
+       from chargeback_transaction a
+       left join merchant m on a.mid=m.mid
+       left join relationship d on m.relationship_id =d.relationship_id
+       where left(received_date,7)  between '2022-06' and '2022-11' ----insert dates----
+     --  and a.card_brand = 'MASTERCARD'
+       group by a.mid
+       ,received_date
+       )
+       ---Main query to combine CTEs---
+         select
+      to_char(rpt_date.rpt_date, 'YYYY-MM'::text) as rpt_date
+      ,processor_name
+      ,m.legal_name
+         ,m.dba_name
+         ,m.mid
+         
+             ,sum(Sales_Count) as Sales_Count
+             ,sum(Return_Count) as Return_Count
+             ,sum(Chargeback_Count) as Chargeback_Count
+             ,sum(Sales_Vol) as Sales_Volume
+             ,sum(Return_Vol) as Return_Volume
+             ,sum(Chargeback_Vol) as Chargeback_Volume
+         from generate_series('2017-01-01'::date, CURRENT_DATE::date, '1 day'::interval) rpt_date(rpt_date)
+             cross join relationship r
+             join merchant m on r.relationship_id=m.relationship_id
+             --join mid on m.merchant_guid = mid.merchant_guid
+ left join partner p on r.child_partner_id =p.partner_id
+             left join sales
+             on sales.mid = m.mid
+              and cast(transaction_date as date) =cast(rpt_date.rpt_date as date)
+             left join chargebacks
+             on chargebacks.mid = m.mid
+              and cast(received_date as date) =cast(rpt_date as date)
+              left join status s on m.merchant_guid = s.merchant_guid
+              left join merchant_payment_summary mps on m.merchant_guid =mps.merchant_guid
+              left join merchant_contact_info mci on mci.merchant_guid = m.merchant_guid
+              left join var v on m.merchant_guid =v.merchant_guid
+             where  to_char(rpt_date,'yyyy-mm') between '2022-06' and '2022-11'  ----insert dates----
+             and processor_name ='NETEVIA' ---- change processor_name ---
+            -- and type_merchant = 'HR'
+            
+            --- and m.mid IN () ----   insert MIDS if looking for specific account performance
+             
+
+             group by
+         to_char(rpt_date.rpt_date, 'YYYY-MM'::text)
+             ,processor_name
+     ,m.legal_name
+         ,m.dba_name
+         ,m.merchant_guid
+  
+  ,s.user_status
+order by
+             m.merchant_guid 
